@@ -1,0 +1,394 @@
+import { useEffect, useState } from "react";
+import axios from "axios";
+import { MapContainer, GeoJSON } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+
+const API = "http://localhost:8000";
+const GEOJSON_URL =
+  "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson";
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+const fmt = (n) =>
+  n != null && n !== "" ? Number(n).toLocaleString("pt-BR") : "—";
+
+const idhColor = (v) => {
+  if (!v) return { bg: "#eee", color: "#999" };
+  if (v >= 0.7) return { bg: "#e8f5e9", color: "#2e7d32" };
+  if (v >= 0.5) return { bg: "#fff8e1", color: "#f57f17" };
+  return { bg: "#fce4ec", color: "#c62828" };
+};
+
+// ─── mini componentes ─────────────────────────────────────────────────────────
+function StatBox({ label, value, accent = false }) {
+  return (
+    <div style={{
+      flex: 1, background: accent ? "#801830" : "#fff",
+      border: "1px solid #e0cdd3", borderRadius: 5,
+      padding: "10px 12px", textAlign: "center",
+    }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color: accent ? "#fff" : "#801830", lineHeight: 1 }}>
+        {value ?? "—"}
+      </div>
+      <div style={{ fontSize: 10, color: accent ? "rgba(255,255,255,0.75)" : "#888", marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ children }) {
+  return (
+    <div style={{
+      fontSize: 11, fontWeight: 700, color: "#801830",
+      textTransform: "uppercase", letterSpacing: 0.8,
+      margin: "14px 0 8px", borderLeft: "3px solid #801830", paddingLeft: 8,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function EmptyRow({ cols, msg }) {
+  return (
+    <tr>
+      <td colSpan={cols} style={{ padding: "12px 6px", textAlign: "center", color: "#bbb", fontSize: 12 }}>
+        {msg}
+      </td>
+    </tr>
+  );
+}
+
+function Th({ children }) {
+  return (
+    <th style={{
+      textAlign: "left", padding: "4px 6px", fontSize: 10, color: "#999",
+      fontWeight: 700, textTransform: "uppercase",
+      borderBottom: "1px solid #f0e0e6", letterSpacing: 0.4,
+    }}>
+      {children}
+    </th>
+  );
+}
+
+function Td({ children, bold, color }) {
+  return (
+    <td style={{
+      padding: "6px 6px", fontSize: 12,
+      borderBottom: "1px solid #fdf0f4",
+      fontWeight: bold ? 700 : 400,
+      color: color || "#333",
+    }}>
+      {children}
+    </td>
+  );
+}
+
+function Tag({ children, bg, color }) {
+  return (
+    <span style={{ background: bg, color, borderRadius: 3, padding: "2px 7px", fontSize: 10, fontWeight: 700 }}>
+      {children}
+    </span>
+  );
+}
+
+function ScoreBar({ value }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ flex: 1, background: "#f0e0e6", borderRadius: 3, height: 8, overflow: "hidden" }}>
+        <div style={{
+          width: `${value}%`, height: "100%",
+          background: "linear-gradient(90deg, #801830, #c47387)",
+          borderRadius: 3, transition: "width 0.8s ease",
+        }} />
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "#801830", minWidth: 34 }}>
+        {value}%
+      </span>
+    </div>
+  );
+}
+
+// ─── painel de dados ──────────────────────────────────────────────────────────
+function DataPanel({ estadoSel, nomeEstado }) {
+  const [loading, setLoading] = useState(false);
+  const [cidades, setCidades] = useState([]);
+  const [totalMunicipios, setTotalMunicipios] = useState(0); // Corrigido: Movido para dentro do componente
+  const [anomalias, setAnomalias] = useState([]);
+  const [dedup, setDedup] = useState([]);
+  const [qualidade, setQualidade] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setCidades([]);
+    setTotalMunicipios(0); // Corrigido: Resetando o total no início do efeito
+    setAnomalias([]);
+    setDedup([]);
+
+    const calls = [
+      axios.get(`${API}/cidades?state=${estadoSel}&limit=5`)
+        .then(r => {
+          setCidades(r.data.data || []);
+          setTotalMunicipios(r.data.total || 0); 
+        })
+        .catch(() => {}),
+
+      axios.get(`${API}/anomalias/estado/${estadoSel}`)
+        .then(r => setAnomalias(r.data.data || []))
+        .catch(() =>
+          axios.get(`${API}/anomalias?limit=200`)
+            .then(r => setAnomalias(
+              (r.data.data || []).filter(c =>
+                (c.STATE || "").toUpperCase() === estadoSel.toUpperCase()
+              )
+            ))
+            .catch(() => {})
+        ),
+
+      // Pares duplicados filtrados pelo estado
+      axios.get(`${API}/deduplicacao?state=${estadoSel}&threshold=85&limit=5`)
+        .then(r => setDedup(r.data.data || []))
+        .catch(() => {}),
+
+      // Score de qualidade geral
+      axios.get(`${API}/qualidade`)
+        .then(r => setQualidade(r.data))
+        .catch(() => {}),
+    ];
+
+    Promise.allSettled(calls).then(() => setLoading(false));
+  }, [estadoSel]);
+
+  // métricas derivadas
+  const popTotal = cidades.reduce((s, c) => s + (Number(c.ESTIMATED_POP) || 0), 0);
+  const idhMedio = cidades.length > 0
+    ? (cidades.reduce((s, c) => s + (Number(c.IDHM) || 0), 0) / cidades.length).toFixed(3)
+    : null;
+
+  return (
+    <div className="data-panel">
+
+      {/* ── card 1: resumo do estado ── */}
+      <div className="bi-card">
+        <div className="bi-card-header">{nomeEstado} ({estadoSel})</div>
+
+        {loading ? <div className="loading">Carregando dados do estado...</div> : (
+          <>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <StatBox label="Municípios" value={fmt(totalMunicipios)} />
+              <StatBox label="Pop. total" value={fmt(popTotal)} />
+              <StatBox label="IDHM médio" value={idhMedio} accent />
+            </div>
+
+            {qualidade && (
+              <div style={{ marginTop: 14 }}>
+                <SectionTitle>Score de Qualidade MDM (base total)</SectionTitle>
+                <ScoreBar value={qualidade.quality_score ?? 0} />
+                <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>
+                  {fmt(qualidade.total_records)} registros · {qualidade.total_columns} atributos ·{" "}
+                  {qualidade.duplicate_rows ?? 0} duplicatas exatas na base
+                </div>
+              </div>
+            )}
+
+            {anomalias.length > 0 && (
+              <div style={{
+                marginTop: 12, background: "#fce4ec", border: "1px solid #f48fb1",
+                borderRadius: 5, padding: "8px 12px", fontSize: 12, color: "#801830",
+              }}>
+                ⚠️ <strong>{anomalias.length} município(s)</strong> com padrões anômalos detectados
+                pelo Isolation Forest neste estado.
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── card 2: top cidades com indicadores reais ── */}
+      <div className="bi-card">
+        <div className="bi-card-header">Top Municípios — {estadoSel}</div>
+        <SectionTitle>Indicadores Cadastrais</SectionTitle>
+
+        {loading ? <div className="loading">Cruzando tabelas...</div> : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr><Th>Município</Th><Th>Pop.</Th><Th>IDHM</Th><Th>PIB/cap</Th></tr>
+            </thead>
+            <tbody>
+              {cidades.length > 0 ? cidades.map((c, i) => {
+                const { bg, color } = idhColor(Number(c.IDHM));
+                return (
+                  <tr key={i}>
+                    <Td bold color="#801830">{c.CITY || "—"}</Td>
+                    <Td>{fmt(c.ESTIMATED_POP)}</Td>
+                    <Td><Tag bg={bg} color={color}>{c.IDHM || "—"}</Tag></Td>
+                    <Td>R$ {fmt(c.GDP_CAPITA)}</Td>
+                  </tr>
+                );
+              }) : <EmptyRow cols={4} msg="Nenhum registro disponível." />}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ── card 3: anomalias ML do estado ── */}
+      <div className="bi-card">
+        <div className="bi-card-header">Anomalias ML — Isolation Forest</div>
+        <SectionTitle>Municípios com padrões atípicos</SectionTitle>
+
+        {loading ? <div className="loading">Executando modelo...</div> : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr><Th>Município</Th><Th>IDHM</Th><Th>Pop.</Th><Th>Score</Th></tr>
+            </thead>
+            <tbody>
+              {anomalias.length > 0 ? anomalias.slice(0, 5).map((r, i) => (
+                <tr key={i}>
+                  <Td bold>{r.CITY || "—"}</Td>
+                  <Td>{r.IDHM || "—"}</Td>
+                  <Td>{fmt(r.ESTIMATED_POP)}</Td>
+                  <Td><Tag bg="#fce4ec" color="#c62828">{r.anomaly_score}</Tag></Td>
+                </tr>
+              )) : <EmptyRow cols={4} msg={`✅ Nenhuma anomalia em ${estadoSel}.`} />}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ── card 4: fuzzy match ── */}
+      <div className="bi-card">
+        <div className="bi-card-header">Saneamento Cadastral — Fuzzy Match</div>
+        <SectionTitle>Pares suspeitos (similaridade ≥ 85%)</SectionTitle>
+
+        {loading ? <div className="loading">Calculando similaridade...</div> : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr><Th>Registro A</Th><Th>Registro B</Th><Th>Sim.</Th></tr>
+            </thead>
+            <tbody>
+              {dedup.length > 0 ? dedup.slice(0, 5).map((d, i) => {
+                const a = d.city_1 || d.CITY_1 || "—";
+                const b = d.city_2 || d.CITY_2 || "—";
+                const score = d.score || d.SCORE || 0;
+                const simBg = score >= 95 ? "#fce4ec" : "#fff8e1";
+                const simClr = score >= 95 ? "#c62828" : "#f57f17";
+                return (
+                  <tr key={i}>
+                    <Td bold color="#801830">{a}</Td>
+                    <Td>{b}</Td>
+                    <Td><Tag bg={simBg} color={simClr}>{score}%</Tag></Td>
+                  </tr>
+                );
+              }) : <EmptyRow cols={3} msg={`✅ Nenhuma duplicata pendente em ${estadoSel}.`} />}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+// ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
+export default function App() {
+  const [estadoSel, setEstadoSel] = useState("SP");
+  const [nomeEstado, setNomeEstado] = useState("São Paulo");
+  const [geoData, setGeoData] = useState(null);
+  const [mapKey, setMapKey] = useState(Date.now());
+
+  useEffect(() => {
+    fetch(GEOJSON_URL)
+      .then(res => res.json())
+      .then(data => setGeoData(data))
+      .catch(err => console.error("Erro ao carregar o mapa:", err));
+  }, []);
+
+  const styleMapa = (feature) => {
+    const siglaRaw = feature.properties.sigla || feature.properties.id || "";
+    const sigla = siglaRaw.replace("BR-", "").toUpperCase();
+    const isSelected = sigla === estadoSel.toUpperCase();
+    return {
+      fillColor: isSelected ? "#801830" : "#dfb2be",
+      weight: 1.5, opacity: 1, color: "#ffffff",
+      fillOpacity: isSelected ? 1 : 0.75,
+    };
+  };
+
+  const onEachFeature = (feature, layer) => {
+    const siglaRaw = feature.properties.sigla || feature.properties.id || "";
+    const sigla = siglaRaw.replace("BR-", "").toUpperCase();
+    const nome = feature.properties.name;
+
+    layer.on({
+      click: () => {
+        if (sigla) {
+          setEstadoSel(sigla);
+          setNomeEstado(nome || sigla);
+          setMapKey(Date.now());
+        }
+      },
+      mouseover: (e) => {
+        if (sigla !== estadoSel.toUpperCase())
+          e.target.setStyle({ fillColor: "#c47387", fillOpacity: 0.9 });
+      },
+      mouseout: (e) => {
+        if (sigla !== estadoSel.toUpperCase())
+          e.target.setStyle({ fillColor: "#dfb2be", fillOpacity: 0.75 });
+      },
+    });
+  };
+
+  return (
+    <div className="shell-bi">
+      <div className="topbar-bi">
+        <div className="topbar-left">
+          <span className="brand-title">Painel de Qualidade de Dados MDM</span>
+          <span className="brand-divider">|</span>
+          <span className="brand-subtitle">
+            Base analisada: Brazilian Cities (2022) — 5.578 municípios brasileiros
+          </span>
+        </div>
+        <div className="topbar-right">
+          <span className="status-text">Foco Atual: {estadoSel}</span>
+        </div>
+      </div>
+
+      <div className="map-dashboard-container">
+
+        {/* ── MAPA (inalterado) ── */}
+        <div className="map-panel">
+          <h2 className="panel-title">Distribuição Territorial da Base</h2>
+          <p className="brand-subtitle">
+            Técnicas: Blocking Geográfico · Isolation Forest · Fuzzy Matching
+          </p><br />
+          <p className="panel-subtitle">
+            Clique em um estado para filtrar os dados da auditoria:
+          </p>
+
+          <div className="leaflet-map-wrapper">
+            {geoData ? (
+              <MapContainer
+                key={mapKey}
+                center={[-15.78, -52.00]}
+                zoom={4}
+                zoomControl={false}
+                attributionControl={false}
+                dragging={false}
+                scrollWheelZoom={false}
+                doubleClickZoom={false}
+                style={{ width: "100%", height: "420px", background: "transparent" }}
+              >
+                <GeoJSON data={geoData} style={styleMapa} onEachFeature={onEachFeature} />
+              </MapContainer>
+            ) : (
+              <div className="loading">Renderizando malha geográfica oficial do IBGE...</div>
+            )}
+          </div>
+        </div>
+
+        {/* ── PAINEL DE DADOS ── */}
+        <DataPanel estadoSel={estadoSel} nomeEstado={nomeEstado} />
+
+      </div>
+    </div>
+  );
+}

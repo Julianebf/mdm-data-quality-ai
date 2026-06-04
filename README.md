@@ -1,4 +1,4 @@
-# 🚀 MDM Data Quality API
+# MDM Data Quality API
 
 Plataforma de **Qualidade de Dados Cadastrais com IA**, focada em **Master Data Management (MDM)**, com funcionalidades de:
 

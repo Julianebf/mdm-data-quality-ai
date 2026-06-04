@@ -1,0 +1,204 @@
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f8f9fa;
+  color: #333333;
+}
+
+/* TOPBAR */
+.topbar-bi {
+  background-color: #ffffff;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e2e2e0;
+}
+.topbar-left { display: flex; align-items: center; gap: 8px; }
+.brand-title { font-weight: 700; font-size: 13px; color: #111; letter-spacing: 0.5px; }
+.brand-divider { color: #ccc; }
+.brand-subtitle { font-weight: 700; font-size: 13px; color: #801830; }
+.brand-breadcrumb { font-size: 11px; color: #777; }
+
+.topbar-right { display: flex; align-items: center; gap: 6px; }
+.status-dot { width: 8px; height: 8px; background-color: #24b353; border-radius: 50%; }
+.status-text { font-size: 12px; color: #555; font-weight: 600; }
+
+/* REORGANIZAÇÃO DO CORPO EM DUAS COLUNAS */
+.map-dashboard-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* COLUNA DO MAPA */
+.map-panel {
+  background: #ffffff;
+  border: 1px solid #e2e2e0;
+  border-radius: 4px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+.panel-title { font-size: 15px; font-weight: 700; color: #222; }
+.panel-subtitle { font-size: 12px; color: #777; margin-top: 4px; margin-bottom: 16px; }
+
+.svg-map-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 15px;
+  background: #ffffff;
+}
+.brazil-svg {
+  width: 100%;
+  max-height: 400px;
+}
+
+/* ELEMENTOS DO ESTADO NO SVG */
+.estado-path {
+  fill: #e6cbd1; /* Rosa/vinho suave para os estados */
+  stroke: #ffffff;
+  stroke-width: 1.2;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.estado-path:hover {
+  fill: #c47387;
+}
+.active-estado {
+  fill: #801830 !important; /* Cor Vinho Sólida idêntica ao print */
+}
+
+.map-legend-helper {
+  margin-top: 16px;
+  background-color: #fdf6f7;
+  padding: 10px;
+  border-left: 4px solid #801830;
+  font-size: 12px;
+  color: #444;
+}
+
+/* PAINEL DE DADOS DA DIREITA */
+.data-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bi-card {
+  background: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #e2e2e0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+.bi-card-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+  text-transform: uppercase;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+/* MINI CARDS DE METRICAS */
+.kpi-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.kpi-mini-box {
+  background: #fdf6f7;
+  border: 1px solid #f6e4e7;
+  padding: 10px;
+  text-align: center;
+  border-radius: 4px;
+}
+.kpi-mini-val { font-size: 16px; font-weight: 700; color: #801830; }
+.kpi-mini-lbl { font-size: 10px; color: #666; font-weight: 600; }
+
+.section-small-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #777;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+/* TABELAS */
+.bi-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.bi-table th { text-align: left; color: #888; font-size: 10px; padding-bottom: 6px; border-bottom: 1px solid #e2e2e0; }
+.bi-table td { padding: 8px 4px; border-bottom: 1px solid #f6f6f6; color: #222; }
+
+.bi-table-tag { background: #e8f7ed; color: #1e7e34; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+.bi-table-tag-pink { background: #fce7f3; color: #be185d; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+
+.anomaly-alert-box {
+  background: #fff0f2;
+  border: 1px solid #fcdbde;
+  color: #c5221f;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.loading { color: #888; font-size: 12px; font-style: italic; text-align: center; padding: 20px 0; }
+.empty { color: #aaa; font-size: 12px; text-align: center; padding: 16px 0; }
+
+.leaflet-map-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 5px;
+  background: #ffffff;
+  border-radius: 4px;
+}
+
+.leaflet-container path {
+  outline: none;
+}
+
+.leaflet-interactive {
+  cursor: pointer !important;
+}
+
+.leaflet-control-attribution {
+  display: none !important;
+}
+/* RÓTULOS DE SIGLA SOBRE O MAPA */
+.map-state-label {
+  background: transparent !important;
+  border: none !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.map-state-label span {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff; /* Letra branca destacada */
+  text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.6), -1px -1px 0 rgba(0,0,0,0.2), 1px -1px 0 rgba(0,0,0,0.2);
+  pointer-events: none; /* Deixa o clique passar direto para o polígono abaixo */
+  user-select: none;
+}
+
+/* Deixa a sigla um pouco maior ou com brilho extra se o estado for o selecionado */
+.label-active span {
+  font-size: 11px;
+  color: #ffffff;
+  text-shadow: 0px 2px 4px #000000;
+}
